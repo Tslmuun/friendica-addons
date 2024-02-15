@@ -3,22 +3,22 @@
  * Akeeba Engine
  *
  * @package   akeebaengine
- * @copyright Copyright (c)2006-2023 Nicholas K. Dionysopoulos / Akeeba Ltd
+ * @copyright Copyright (c)2006-2020 Nicholas K. Dionysopoulos / Akeeba Ltd
  * @license   GNU General Public License version 3, or later
  */
 
-namespace Akeeba\S3;
+namespace Akeeba\Engine\Postproc\Connector\S3v4;
 
 // Protection against direct access
-use Akeeba\S3\Exception\CannotDeleteFile;
-use Akeeba\S3\Exception\CannotGetBucket;
-use Akeeba\S3\Exception\CannotGetFile;
-use Akeeba\S3\Exception\CannotListBuckets;
-use Akeeba\S3\Exception\CannotOpenFileForWrite;
-use Akeeba\S3\Exception\CannotPutFile;
-use Akeeba\S3\Response\Error;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotDeleteFile;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotGetBucket;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotGetFile;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotListBuckets;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotOpenFileForWrite;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\CannotPutFile;
+use Akeeba\Engine\Postproc\Connector\S3v4\Response\Error;
 
-defined('AKEEBAENGINE') || die();
+defined('AKEEBAENGINE') or die();
 
 class Connector
 {
@@ -81,10 +81,7 @@ class Connector
 
 		if (($input->getSize() <= 0) || (($input->getInputType() == Input::INPUT_DATA) && (!strlen($input->getDataReference()))))
 		{
-			if (substr($uri, -1) !== '/')
-			{
-				throw new CannotPutFile('Missing input parameters', 0);
-			}
+			throw new CannotPutFile('Missing input parameters', 0);
 		}
 
 		// We need to post with Content-Length and Content-Type, MD5 is optional
@@ -172,7 +169,7 @@ class Connector
 
 		if (!is_resource($saveTo) && is_string($saveTo))
 		{
-			$fp = @fopen($saveTo, 'w');
+			$fp = @fopen($saveTo, 'wb');
 
 			if ($fp === false)
 			{
@@ -196,53 +193,6 @@ class Connector
 			$request->setHeader('Range', "bytes=$from-$to");
 		}
 
-		$response = $request->getResponse(true);
-
-		if (!$response->error->isError() && (($response->code !== 200) && ($response->code !== 206)))
-		{
-			$response->error = new Error(
-				$response->code,
-				"Unexpected HTTP status {$response->code}"
-			);
-		}
-
-		if ($response->error->isError())
-		{
-			throw new CannotGetFile(
-				sprintf(
-					__METHOD__ . "({%s}, {%s}): [%s] %s\n\nDebug info:\n%s",
-					$bucket,
-					$uri,
-					$response->error->getCode(),
-					$response->error->getMessage(),
-					print_r($response->body, true)
-				)
-			);
-		}
-
-		if (!is_resource($fp))
-		{
-			return $response->body;
-		}
-
-		return null;
-	}
-
-	/**
-	 * Get information about an object.
-	 *
-	 * @param   string  $bucket  Bucket name
-	 * @param   string  $uri     Object URI
-	 *
-	 * @return  array  The headers returned by Amazon S3
-	 *
-	 * @throws  CannotGetFile  If the file does not exist
-	 * @see     https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
-	 */
-	public function headObject(string $bucket, string $uri): array
-	{
-		$request = new Request('HEAD', $bucket, $uri, $this->configuration);
-
 		$response = $request->getResponse();
 
 		if (!$response->error->isError() && (($response->code !== 200) && ($response->code !== 206)))
@@ -256,20 +206,19 @@ class Connector
 		if ($response->error->isError())
 		{
 			throw new CannotGetFile(
-				sprintf(
-					__METHOD__ . "({%s}, {%s}): [%s] %s\n\nDebug info:\n%s",
-					$bucket,
-					$uri,
-					$response->error->getCode(),
-					$response->error->getMessage(),
-					print_r($response->body, true)
-				)
+				sprintf(__METHOD__ . "({$bucket}, {$uri}): [%s] %s\n\nDebug info:\n%s",
+					$response->error->getCode(), $response->error->getMessage(), print_r($response->body, true)),
+				$response->error->getCode()
 			);
 		}
 
-		return $response->getHeaders();
-	}
+		if (!is_resource($fp))
+		{
+			return $response->body;
+		}
 
+		return null;
+	}
 
 	/**
 	 * Delete an object
@@ -295,13 +244,9 @@ class Connector
 		if ($response->error->isError())
 		{
 			throw new CannotDeleteFile(
-				sprintf(
-					__METHOD__ . "({%s}, {%s}): [%s] %s",
-					$bucket,
-					$uri,
-					$response->error->getCode(),
-					$response->error->getMessage()
-				)
+				sprintf(__METHOD__ . "({$bucket}, {$uri}): [%s] %s",
+					$response->error->getCode(), $response->error->getMessage()),
+				$response->error->getCode()
 			);
 		}
 	}
@@ -413,7 +358,8 @@ class Connector
 		if ($response->error->isError())
 		{
 			throw new CannotGetBucket(
-				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage())
+				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage()),
+				$response->error->getCode()
 			);
 		}
 
@@ -457,47 +403,168 @@ class Connector
 	 */
 	public function getBucket(string $bucket, ?string $prefix = null, ?string $marker = null, ?int $maxKeys = null, string $delimiter = '/', bool $returnCommonPrefixes = false): array
 	{
-		$internalResult = $this->internalGetBucket($bucket, $prefix, $marker, $maxKeys, $delimiter, $returnCommonPrefixes);
+		$request = new Request('GET', $bucket, '', $this->configuration);
 
-		/**
-		 * @var array   $objects
-		 * @var ?string $nextMarker
-		 */
-		extract($internalResult);
-		unset($internalResult);
+		if (!empty($prefix))
+		{
+			$request->setParameter('prefix', $prefix);
+		}
 
-		// Loop through truncated results if maxKeys isn't specified or we don't have enough object records yet.
-		if ($nextMarker !== null && ($maxKeys === null || count($objects) < $maxKeys))
+		if (!empty($marker))
+		{
+			$request->setParameter('marker', $marker);
+		}
+
+		if (!empty($maxKeys))
+		{
+			$request->setParameter('max-keys', $maxKeys);
+		}
+
+		if (!empty($delimiter))
+		{
+			$request->setParameter('delimiter', $delimiter);
+		}
+
+		$response = $request->getResponse();
+
+		if (!$response->error->isError() && $response->code !== 200)
+		{
+			$response->error = new Error(
+				$response->code,
+				"Unexpected HTTP status {$response->code}"
+			);
+		}
+
+		if ($response->error->isError())
+		{
+			throw new CannotGetBucket(
+				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage()),
+				$response->error->getCode()
+			);
+		}
+
+		$results = [];
+
+		$nextMarker = null;
+
+		if ($response->hasBody() && isset($response->body->Contents))
+		{
+			foreach ($response->body->Contents as $c)
+			{
+				$results[(string) $c->Key] = [
+					'name' => (string) $c->Key,
+					'time' => strtotime((string) $c->LastModified),
+					'size' => (int) $c->Size,
+					'hash' => substr((string) $c->ETag, 1, -1),
+				];
+
+				$nextMarker = (string) $c->Key;
+			}
+		}
+
+		if ($returnCommonPrefixes && $response->hasBody() && isset($response->body->CommonPrefixes))
+		{
+			foreach ($response->body->CommonPrefixes as $c)
+			{
+				$results[(string) $c->Prefix] = ['prefix' => (string) $c->Prefix];
+			}
+		}
+
+		if ($response->hasBody() && isset($response->body->IsTruncated) &&
+			((string) $response->body->IsTruncated == 'false')
+		)
+		{
+			return $results;
+		}
+
+		if ($response->hasBody() && isset($response->body->NextMarker))
+		{
+			$nextMarker = (string) $response->body->NextMarker;
+		}
+
+		// Is it a truncated result?
+		$isTruncated = ($nextMarker !== null) && ((string) $response->body->IsTruncated == 'true');
+		// Is this a truncated result and no maxKeys specified?
+		$isTruncatedAndNoMaxKeys = ($maxKeys == null) && $isTruncated;
+		// Is this a truncated result with less keys than the specified maxKeys; and common prefixes found but not returned to the caller?
+		$isTruncatedAndNeedsContinue = ($maxKeys != null) && $isTruncated && (count($results) < $maxKeys);
+
+		// Loop through truncated results if maxKeys isn't specified
+		if ($isTruncatedAndNoMaxKeys || $isTruncatedAndNeedsContinue)
 		{
 			do
 			{
-				$internalResult = $this->internalGetBucket($bucket, $prefix, $nextMarker, $maxKeys, $delimiter, $returnCommonPrefixes);
+				$request = new Request('GET', $bucket, '', $this->configuration);
 
-				$nextMarker = $internalResult['nextMarker'];
-				$objects    = array_merge($objects, $internalResult['objects']);
+				if (!empty($prefix))
+				{
+					$request->setParameter('prefix', $prefix);
+				}
 
-				unset($internalResult);
+				$request->setParameter('marker', $nextMarker);
 
-				// If the last call did not return a nextMarker I am done iterating.
-				if ($nextMarker === null)
+				if (!empty($delimiter))
+				{
+					$request->setParameter('delimiter', $delimiter);
+				}
+
+				try
+				{
+					$response = $request->getResponse();
+				}
+				catch (\Exception $e)
 				{
 					break;
 				}
 
-				// If we have maxKeys AND the number of objects is at least this many I am done iterating.
-				if ($maxKeys !== null && count($objects) >= $maxKeys)
+				if ($response->hasBody() && isset($response->body->Contents))
 				{
-					break;
+					foreach ($response->body->Contents as $c)
+					{
+						$results[(string) $c->Key] = [
+							'name' => (string) $c->Key,
+							'time' => strtotime((string) $c->LastModified),
+							'size' => (int) $c->Size,
+							'hash' => substr((string) $c->ETag, 1, -1),
+						];
+
+						$nextMarker = (string) $c->Key;
+					}
 				}
-			} while (true);
+
+				if ($returnCommonPrefixes && $response->hasBody() && isset($response->body->CommonPrefixes))
+				{
+					foreach ($response->body->CommonPrefixes as $c)
+					{
+						$results[(string) $c->Prefix] = ['prefix' => (string) $c->Prefix];
+					}
+				}
+
+				if ($response->hasBody() && isset($response->body->NextMarker))
+				{
+					$nextMarker = (string) $response->body->NextMarker;
+				}
+
+				$continueCondition = false;
+
+				if ($isTruncatedAndNoMaxKeys)
+				{
+					$continueCondition = !$response->error->isError() && $isTruncated;
+				}
+
+				if ($isTruncatedAndNeedsContinue)
+				{
+					$continueCondition = !$response->error->isError() && $isTruncated && (count($results) < $maxKeys);
+				}
+			} while ($continueCondition);
 		}
 
-		if ($maxKeys !== null)
+		if (!is_null($maxKeys))
 		{
-			return array_splice($objects, 0, $maxKeys);
+			$results = array_splice($results, 0, $maxKeys);
 		}
 
-		return $objects;
+		return $results;
 	}
 
 	/**
@@ -527,7 +594,8 @@ class Connector
 		if ($response->error->isError())
 		{
 			throw new CannotListBuckets(
-				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage())
+				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage()),
+				$response->error->getCode()
 			);
 		}
 
@@ -623,12 +691,7 @@ class Connector
 		if ($response->error->isError())
 		{
 			throw new CannotPutFile(
-				sprintf(
-					__METHOD__ . "(): [%s] %s\n\nDebug info:\n%s",
-					$response->error->getCode(),
-					$response->error->getMessage(),
-					print_r($response->body, true)
-				)
+				sprintf(__METHOD__ . "(): [%s] %s\n\nDebug info:\n%s", $response->error->getCode(), $response->error->getMessage(), print_r($response->body, true))
 			);
 		}
 
@@ -894,91 +957,5 @@ class Connector
 	public function getConfiguration(): Configuration
 	{
 		return $this->configuration;
-	}
-
-	private function internalGetBucket(string $bucket, ?string $prefix = null, ?string $marker = null, ?int $maxKeys = null, string $delimiter = '/', bool $returnCommonPrefixes = false): array
-	{
-		$request = new Request('GET', $bucket, '', $this->configuration);
-
-		if (!empty($prefix))
-		{
-			$request->setParameter('prefix', $prefix);
-		}
-
-		if (!empty($marker))
-		{
-			$request->setParameter('marker', $marker);
-		}
-
-		if (!empty($maxKeys))
-		{
-			$request->setParameter('max-keys', $maxKeys);
-		}
-
-		if (!empty($delimiter))
-		{
-			$request->setParameter('delimiter', $delimiter);
-		}
-
-		$response = $request->getResponse();
-
-		if (!$response->error->isError() && $response->code !== 200)
-		{
-			$response->error = new Error(
-				$response->code,
-				"Unexpected HTTP status {$response->code}"
-			);
-		}
-
-		if ($response->error->isError())
-		{
-			throw new CannotGetBucket(
-				sprintf(__METHOD__ . "(): [%s] %s", $response->error->getCode(), $response->error->getMessage())
-			);
-		}
-
-		$results = [
-			'objects'    => [],
-			'nextMarker' => null,
-		];
-
-		if ($response->hasBody() && isset($response->body->Contents))
-		{
-			foreach ($response->body->Contents as $c)
-			{
-				$results['objects'][(string) $c->Key] = [
-					'name' => (string) $c->Key,
-					'time' => strtotime((string) $c->LastModified),
-					'size' => (int) $c->Size,
-					'hash' => substr((string) $c->ETag, 1, -1),
-				];
-
-				$results['nextMarker'] = (string) $c->Key;
-			}
-		}
-
-		if ($returnCommonPrefixes && $response->hasBody() && isset($response->body->CommonPrefixes))
-		{
-			foreach ($response->body->CommonPrefixes as $c)
-			{
-				$results['objects'][(string) $c->Prefix] = ['prefix' => (string) $c->Prefix];
-			}
-		}
-
-		if ($response->hasBody() && isset($response->body->IsTruncated) &&
-			((string) $response->body->IsTruncated == 'false')
-		)
-		{
-			$results['nextMarker'] = null;
-
-			return $results;
-		}
-
-		if ($response->hasBody() && isset($response->body->NextMarker))
-		{
-			$results['nextMarker'] = (string) $response->body->NextMarker;
-		}
-
-		return $results;
 	}
 }

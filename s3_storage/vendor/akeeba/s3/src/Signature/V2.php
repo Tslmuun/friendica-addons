@@ -3,16 +3,16 @@
  * Akeeba Engine
  *
  * @package   akeebaengine
- * @copyright Copyright (c)2006-2023 Nicholas K. Dionysopoulos / Akeeba Ltd
+ * @copyright Copyright (c)2006-2020 Nicholas K. Dionysopoulos / Akeeba Ltd
  * @license   GNU General Public License version 3, or later
  */
 
-namespace Akeeba\S3\Signature;
+namespace Akeeba\Engine\Postproc\Connector\S3v4\Signature;
 
 // Protection against direct access
-defined('AKEEBAENGINE') || die();
+defined('AKEEBAENGINE') or die();
 
-use Akeeba\S3\Signature;
+use Akeeba\Engine\Postproc\Connector\S3v4\Signature;
 
 /**
  * Implements the Amazon AWS v2 signatures
@@ -123,7 +123,7 @@ class V2 extends Signature
 		}
 
 		// AMZ headers must be sorted and sent as separate lines
-		if (count($amz) > 0)
+		if (sizeof($amz) > 0)
 		{
 			sort($amz);
 			$amzString = "\n" . implode("\n", $amz);
@@ -150,8 +150,8 @@ class V2 extends Signature
 		}
 
 		$stringToSign = $verb . "\n" .
-			($headers['Content-MD5'] ?? '') . "\n" .
-			($headers['Content-Type'] ?? '') . "\n" .
+			(isset($headers['Content-MD5']) ? $headers['Content-MD5'] : '') . "\n" .
+			(isset($headers['Content-Type']) ? $headers['Content-Type'] : '') . "\n" .
 			$headers['Date'] .
 			$amzString . "\n" .
 			$resourcePath;

@@ -1,6 +1,5 @@
 /.idea/
 /000/
-/minitest/config.*
-!/minitest/config.dist.php
+/minitest/config.php
 /minitest/tmp
 /vendor/

@@ -3,14 +3,14 @@
  * Akeeba Engine
  *
  * @package   akeebaengine
- * @copyright Copyright (c)2006-2023 Nicholas K. Dionysopoulos / Akeeba Ltd
+ * @copyright Copyright (c)2006-2020 Nicholas K. Dionysopoulos / Akeeba Ltd
  * @license   GNU General Public License version 3, or later
  */
 
-namespace Akeeba\S3;
+namespace Akeeba\Engine\Postproc\Connector\S3v4;
 
 // Protection against direct access
-defined('AKEEBAENGINE') || die();
+defined('AKEEBAENGINE') or die();
 
 /**
  * Base class for request signing objects.
@@ -44,7 +44,7 @@ abstract class Signature
 	 */
 	public static function getSignatureObject(Request $request, string $method = 'v2'): self
 	{
-		$className = __NAMESPACE__ . '\\Signature\\' . ucfirst($method);
+		$className = '\\Akeeba\\Engine\\Postproc\\Connector\\S3v4\\Signature\\' . ucfirst($method);
 
 		return new $className($request);
 	}

@@ -3,18 +3,18 @@
  * Akeeba Engine
  *
  * @package   akeebaengine
- * @copyright Copyright (c)2006-2023 Nicholas K. Dionysopoulos / Akeeba Ltd
+ * @copyright Copyright (c)2006-2020 Nicholas K. Dionysopoulos / Akeeba Ltd
  * @license   GNU General Public License version 3, or later
  */
 
-namespace Akeeba\S3;
+namespace Akeeba\Engine\Postproc\Connector\S3v4;
 
-use Akeeba\S3\Exception\PropertyNotFound;
-use Akeeba\S3\Response\Error;
+use Akeeba\Engine\Postproc\Connector\S3v4\Exception\PropertyNotFound;
+use Akeeba\Engine\Postproc\Connector\S3v4\Response\Error;
 use SimpleXMLElement;
 
 // Protection against direct access
-defined('AKEEBAENGINE') || die();
+defined('AKEEBAENGINE') or die();
 
 /**
  * Amazon S3 API response object
@@ -124,7 +124,7 @@ class Response
 	 *
 	 * @param   string|SimpleXMLElement|null  $body
 	 */
-	public function setBody($body, bool $rawResponse = false): void
+	public function setBody($body): void
 	{
 		$this->body = null;
 
@@ -135,7 +135,7 @@ class Response
 
 		$this->body = $body;
 
-		$this->finaliseBody($rawResponse);
+		$this->finaliseBody();
 	}
 
 	public function resetBody(): void
@@ -153,7 +153,7 @@ class Response
 		$this->body .= $data;
 	}
 
-	public function finaliseBody(bool $rawResponse = false): void
+	public function finaliseBody(): void
 	{
 		if (!$this->hasBody())
 		{
@@ -165,14 +165,8 @@ class Response
 			$this->headers['type'] = 'text/plain';
 		}
 
-		if (
-			!$rawResponse
-			&& is_string($this->body)
-			&&
-			(
-				($this->headers['type'] == 'application/xml')
-				|| (substr($this->body, 0, 5) == '<?xml')
-			)
+		if (is_string($this->body) &&
+			(($this->headers['type'] == 'application/xml') || (substr($this->body, 0, 5) == '<?xml'))
 		)
 		{
 			$this->body = simplexml_load_string($this->body);
@@ -338,8 +332,8 @@ class Response
 		)
 		{
 			$this->error = new Error(
-				500,
-				(string) $this->body->Code . ':' . (string) $this->body->Message
+				$this->code,
+				(string) $this->body->Message
 			);
 
 			if (isset($this->body->Resource))

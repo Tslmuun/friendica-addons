@@ -3,14 +3,15 @@
  * Akeeba Engine
  *
  * @package   akeebaengine
- * @copyright Copyright (c)2006-2023 Nicholas K. Dionysopoulos / Akeeba Ltd
+ * @copyright Copyright (c)2006-2020 Nicholas K. Dionysopoulos / Akeeba Ltd
  * @license   GNU General Public License version 3, or later
  */
 
 namespace Akeeba\MiniTest\Test;
 
-use Akeeba\S3\Connector;
-use Akeeba\S3\Input;
+
+use Akeeba\Engine\Postproc\Connector\S3v4\Connector;
+use Akeeba\Engine\Postproc\Connector\S3v4\Input;
 
 /**
  * Upload, download and delete small files (under 1MB) using a string source
@@ -26,7 +27,7 @@ class SmallInlineFiles extends SmallFiles
 		$uri    = substr($uri, 0, $dotPos) . '.' . md5(microtime(false)) . substr($uri, $dotPos);
 
 		// Create some random data to upload
-		$sourceData = static::getRandomData($size);
+		$sourceData = self::getRandomData($size);
 
 		// Upload the data. Throws exception if it fails.
 		$bucket = $options['bucket'];
@@ -38,15 +39,15 @@ class SmallInlineFiles extends SmallFiles
 		$result = true;
 
 		// Should I download the file and compare its contents with my random data?
-		if (static::$downloadAfter)
+		if (self::$downloadAfter)
 		{
 			$downloadedData = $s3->getObject($bucket, $uri);
 
-			$result = static::areStringsEqual($sourceData, $downloadedData);
+			$result = self::areStringsEqual($sourceData, $downloadedData);
 		}
 
 		// Should I delete the remotely stored file?
-		if (static::$deleteRemote)
+		if (self::$deleteRemote)
 		{
 			// Delete the remote file. Throws exception if it fails.
 			$s3->deleteObject($bucket, $uri);
